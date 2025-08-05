@@ -59,7 +59,7 @@ st.markdown("""
 @st.cache_resource
 def load_model():
     try:
-        model = tf.keras.models.load_model('skin_diseases.h5')
+        model = tf.keras.models.load_model('skin_disease.h5')
         return model
     except Exception as e:
         st.error(f"မော်ဒယ်ဖတ်ရှုရာတွင် အမှားတစ်ခုဖြစ်ပေါ်ခဲ့သည်: {str(e)}")
@@ -248,4 +248,5 @@ def main():
 
 
 if __name__ == "__main__":
+
     main()
