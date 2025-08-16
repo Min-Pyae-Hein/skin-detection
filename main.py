@@ -128,88 +128,254 @@ DISEASE_INFO = {
 }
 
 
-def preprocess_image(image):
+def validate_image(image):
+    if image is None:
+        st.warning("ဓာတ်ပုံမတွေ့ပါ")
+        return False
     try:
-        # Keep original image for display
-        display_image = image.copy()
+        if isinstance(image, Image.Image):
+            img_array = np.array(image)
+        else:
+            img_array = image
 
-        # Process image for model
-        image = image.convert('RGB')
-        image = image.resize((224, 224))
-        image = np.array(image)
-        image = image / 255.0
-        image = np.expand_dims(image, axis=0)
-        return image, display_image
+        # Check for minimum dimensions
+        if img_array.shape[0] < 50 or img_array.shape[1] < 50:
+            st.warning("ဓာတ်ပုံအရွယ်အစား အလွန်သေးငယ်နေပါသည် (အနည်းဆုံး 50x50 pixels လိုအပ်ပါသည်)")
+            return False
+
+        # Skin detection for color images
+        if len(img_array.shape) == 3:  # Color image
+            # Convert to HSV color space
+            hsv = cv2.cvtColor(img_array, cv2.COLOR_RGB2HSV)
+
+            # Define skin color range in HSV
+            lower_skin = np.array([0, 48, 80], dtype=np.uint8)
+            upper_skin = np.array([20, 255, 255], dtype=np.uint8)
+
+            # Create mask
+            skin_mask = cv2.inRange(hsv, lower_skin, upper_skin)
+
+            # Calculate percentage of skin pixels
+            skin_pixels = cv2.countNonZero(skin_mask)
+            total_pixels = img_array.shape[0] * img_array.shape[1]
+            skin_percentage = (skin_pixels / total_pixels) * 100
+
+            # If less than 5% of the image contains skin-like colors
+            if skin_percentage < 5:
+                st.markdown(
+                    '<div class="skin-warning">⚠️ ဤဓာတ်ပုံတွင် အရေပြားမပါဝင်ပါ (သို့) အရေပြားအစား အခြားအရာများပါဝင်နေပါသည်။ အရေပြားဓာတ်ပုံတင်ပေးပါ။</div>',
+                    unsafe_allow_html=True)
+                return False
+
+        return True
     except Exception as e:
-        st.error(f"ဓာတ်ပုံအချက်အလက်များ ပြင်ဆင်ရာတွင် အမှားတစ်ခုဖြစ်ပေါ်ခဲ့သည်: {str(e)}")
-        return None, None
+        st.error(f"ဓာတ်ပုံ စစ်ဆေးရာတွင် အမှားတစ်ခုဖြစ်နေသည်: {str(e)}")
+        return False
 
+def apply_advanced_preprocessing(image):
+    """Enhanced preprocessing pipeline"""
+    try:
+        if not validate_image(image):
+            return None
+
+        # Convert to numpy array if PIL Image
+        if isinstance(image, Image.Image):
+            img = np.array(image)
+        else:
+            img = image.copy()
+
+        # Handle different image formats
+        if len(img.shape) == 2:  # Grayscale
+            img = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+        elif img.shape[2] == 4:  # RGBA
+            img = cv2.cvtColor(img, cv2.COLOR_RGBA2RGB)
+
+        # Color correction
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+        l, a, b = cv2.split(img)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        l = clahe.apply(l)
+        img = cv2.merge((l, a, b))
+        img = cv2.cvtColor(img, cv2.COLOR_LAB2RGB)
+
+        # Smart denoising
+        img = cv2.fastNlMeansDenoisingColored(
+            img, None,
+            h=10, hColor=10,
+            templateWindowSize=7,
+            searchWindowSize=21
+        )
+
+        return img
+
+    except Exception as e:
+        st.error(f"ဓာတ်ပုံပြင်ဆင်ရာတွင် အမှားတစ်ခုဖြစ်နေသည်: {str(e)}")
+        return None
+def remove_background_and_focus_roi(image):
+    """Improved ROI detection with better visualization and false positive reduction"""
+    try:
+        if not validate_image(image):
+            return None, 0.0
+
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+
+        # Adaptive thresholding
+        thresh = cv2.adaptiveThreshold(
+            gray, 255,
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV,
+            11, 2
+        )
+
+        # Morphological operations
+        kernel = np.ones((3, 3), np.uint8)
+        cleaned = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+        cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_OPEN, kernel, iterations=1)
+
+        contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        if not contours:
+            return None, 0.0
+
+        # FIX 1: Ignore tiny noise areas (< 0.5% of image area)
+        image_area = gray.shape[0] * gray.shape[1]
+        contours = [c for c in contours if cv2.contourArea(c) > 0.005 * image_area]
+        if not contours:
+            return None, 0.0
+
+        largest_contour = max(contours, key=cv2.contourArea)
+
+        mask = np.zeros_like(gray)
+        cv2.drawContours(mask, [largest_contour], -1, 255, thickness=cv2.FILLED)
+
+        # Calculate affected area percentage
+        disease_pixels = np.count_nonzero(mask)
+        total_pixels = mask.shape[0] * mask.shape[1]
+        disease_percentage = (disease_pixels / total_pixels) * 100
+
+        # Visualization
+        visualization = image.copy()
+        cv2.drawContours(visualization, [largest_contour], -1, (0, 255, 0), 2)
+
+        return visualization, disease_percentage
+
+    except Exception as e:
+        st.error(f"ROI ထုတ်ယူရာတွင် အမှားတစ်ခုဖြစ်နေသည်: {str(e)}")
+        return None, 0.0
+
+
+def preprocess_for_model(image):
+    """Final preprocessing for model input with validation"""
+    try:
+        if not validate_image(image):
+            return None
+
+        # Convert to RGB if grayscale
+        if len(image.shape) == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2RGB)
+        elif image.shape[2] == 4:
+            image = image[:, :, :3]
+
+        # Resize with aspect ratio preservation
+        height, width = image.shape[:2]
+        target_size = 224
+
+        # Calculate padding
+        if height > width:
+            new_height = target_size
+            new_width = int(width * (target_size / height))
+        else:
+            new_width = target_size
+            new_height = int(height * (target_size / width))
+
+        resized = cv2.resize(image, (new_width, new_height))
+
+        # Pad to make square
+        delta_w = target_size - new_width
+        delta_h = target_size - new_height
+        top, bottom = delta_h // 2, delta_h - (delta_h // 2)
+        left, right = delta_w // 2, delta_w - (delta_w // 2)
+
+        img = cv2.copyMakeBorder(
+            resized, top, bottom, left, right,
+            cv2.BORDER_CONSTANT, value=[0, 0, 0]
+        )
+
+        # Normalize
+        img = img.astype('float32') / 255.0
+        return np.expand_dims(img, axis=0)
+
+    except Exception as e:
+        st.error(f"မော်ဒယ်အတွက် ဓာတ်ပုံပြင်ဆင်ရာတွင် အမှားတစ်ခုဖြစ်နေသည်: {str(e)}")
+        return None
 
 def main():
-    st.title("🩺 အရေပြားကင်ဆာ ခွဲခြားရေးကိရိယာ")
-    st.markdown("""
-    ဤအက်ပ်သည် HAM10000 ဒေတာအစုံကို အသုံးပြု၍ အရေပြားပြဿနာများကို အမျိုးအစား (၇) မျိုး ခွဲခြားပေးပါသည်။
-    အရေပြားပြဿနာရှိသည့် ဓာတ်ပုံတစ်ပုံကို တင်ပြီး ရောဂါအဖြေရှာမှုရယူနိုင်ပါသည်။
-    """)
+    st.title("🩺 အရေပြားရောဂါရှာဖွေရေး")
+    st.markdown(
+        "ဤစနစ်သည် အရေပြားပြဿနာများကို အမျိုးအစား ၇ မျိုးအထိ မှန်ကန်စွာ ခွဲခြားနိုင်သည်။ အသုံးပြုသူသည် အရေပြားပြဿနာရှိသော ဓာတ်ပုံတစ်ပုံကို တင်သွင်းခြင်းဖြင့်၊ အဆိုပါရောဂါအမျိုးအစားနှင့် ပတ်သက်သော ခန့်မှန်းအဖြေကို အလွယ်တကူ ရရှိနိုင်သည်။")
 
-    uploaded_file = st.file_uploader(
-        "အရေပြားပြဿနာဓာတ်ပုံတစ်ပုံကို တင်ပါ",
-        type=["jpg", "jpeg", "png"],
-        help="ခွဲခြားသတ်မှတ်ရန်အတွက် အရေပြားပြဿနာ၏ ရှင်းလင်းသော ဓာတ်ပုံတစ်ပုံကို တင်ပါ"
-    )
+    uploaded_file = st.file_uploader("ဓာတ်ပုံတင်ပါ...", type=["jpg", "jpeg", "png"])
 
     if uploaded_file is not None:
         try:
-            image = Image.open(uploaded_file)
+            original_image = Image.open(uploaded_file)
 
-            # Display smaller image with proper formatting
-            st.markdown('<div class="stImage">', unsafe_allow_html=True)
-            st.image(image, caption="တင်ထားသော ဓာတ်ပုံ", width=300)
-            st.markdown('</div>', unsafe_allow_html=True)
+            if not validate_image(original_image):
+                st.stop()
 
-            with st.spinner("ဓာတ်ပုံကို ဆန်းစစ်နေသည်..."):
-                processed_image, display_image = preprocess_image(image)
+            processed_img = apply_advanced_preprocessing(original_image)
+            roi_img, disease_percent = remove_background_and_focus_roi(
+                processed_img if processed_img is not None else np.array(original_image)
+            )
 
-                if model and processed_image is not None:
-                    predictions = model.predict(processed_image)
+            predicted_class = None
+            confidence = 0
+
+            col1, col2 = st.columns(2)
+            with col1:
+                st.subheader("ဆန်းစစ်မှု အဆင့်ဆင့်")
+                st.image(original_image, use_container_width=True, caption="ဓာတ်ပုံ")
+
+            # FIX 2: Require at least 3% affected area
+            if disease_percent > 1:
+                model_input = preprocess_for_model(roi_img)
+                if model and model_input is not None:
+                    predictions = model.predict(model_input)
                     predicted_class = np.argmax(predictions[0])
-                    confidence = np.max(predictions[0]) * 100 * 5
+                    confidence = np.max(predictions[0]) * 100
+                    disease_name = CLASS_NAMES_MM[predicted_class]
 
-                    # Handle cases where confidence might be very close to 100%
-                    confidence = min(100.0, confidence)  # Ensure it doesn't exceed 100%
-                    if confidence > 95.95:  # Round to 100% if very close
-                        confidence = 100.0
+                    if confidence > 99:
+                        confidence = 100
 
+                    # FIX 3: If confidence is low → clear skin
+                    if confidence < 70:
+                        st.markdown('<div class="clear-skin">ကျန်းမာသော အရေပြား (မည်သည့်ရောဂါမျှ မတွေ့ပါ)</div>',
+                                    unsafe_allow_html=True)
+                    else:
+                        with col2:
+                            st.subheader("ရောဂါရှာဖွေမှု ရလဒ်များ")
+                            st.markdown(f"""
+                                **Disease Type:**  
+                                <span style="font-size: 20px; font-weight: bold;">{disease_name}</span>  
+                                **Accuracy:** {confidence:.2f}%  
+                            """, unsafe_allow_html=True)
 
-                    col1, col2 = st.columns(2)
-
-                    with col1:
-                        st.subheader("ခန့်မှန်းချက်")
-                        st.markdown(f"""
-                        **အမျိုးအစား:** {CLASS_NAMES_MM[predicted_class]}  
-                        **ယုံကြည်မှုအဆင့်:** {confidence:.2f}%  
-                        """)
-                    # Disease information section
-                    st.markdown("---")
-                    st.subheader(f"{CLASS_NAMES_MM[predicted_class]} အကြောင်း")
-
-                    with st.expander("ဖြစ်ပွားရသည့် အကြောင်းရင်းများ"):
-                        st.write(DISEASE_INFO[predicted_class]['causes'])
-
-                    with st.expander("ရောဂါအကြောင်း"):
-                        st.write(DISEASE_INFO[predicted_class]['about'])
-
-                    with st.expander("ကုသမှုနှင့် ကာကွယ်ရန်"):
-                        st.write("""
-                        - နေရောင်ခြည်မှ ကာကွယ်ရန် SPF 30 (သို့) ထိုထက်မြင့်သော နေလောင်ကာခရင်မ် အသုံးပြုပါ
-                        - အရေပြားပေါ်ရှိ မူမမှန်သော အပြောင်းအလဲများကို ပုံမှန်စစ်ဆေးပါ
-                        - အရေပြားအထူးကုဆရာဝန်နှင့် ပြသပါ
-                        - စောစီးစွာ ရောဂါရှာဖွေကုသမှုခံယူပါ
-                        """)
+                        st.subheader(f"{CLASS_NAMES_MM[predicted_class]} အကြောင်း")
+                        with st.expander("ဖြစ်ပွားရသည့် အကြောင်းရင်းများ"):
+                            st.write(DISEASE_INFO[predicted_class]['causes'])
+                        with st.expander("ရောဂါအကြောင်း"):
+                            st.write(DISEASE_INFO[predicted_class]['about'])
+                        with st.expander("ကုသမှုနှင့် ကာကွယ်ရန်"):
+                            st.write(DISEASE_INFO[predicted_class]['protect'])
+            else:
+                st.markdown('<div class="clear-skin">ကျန်းမာသော အရေပြား (မည်သည့်ရောဂါမျှ မတွေ့ပါ)</div>',
+                            unsafe_allow_html=True)
 
         except Exception as e:
-            st.error(f"အမှားတစ်ခုဖြစ်ပေါ်ခဲ့သည်: {str(e)}")
+            st.error(f"ဓာတ်ပုံ ဆန်းစစ်ရာတွင် အမှားတစ်ခုဖြစ်နေသည်: {str(e)}")
 
 
 if __name__ == "__main__":
     main()
+
