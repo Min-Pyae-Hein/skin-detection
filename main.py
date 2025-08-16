@@ -172,7 +172,7 @@ def main():
                 if model and processed_image is not None:
                     predictions = model.predict(processed_image)
                     predicted_class = np.argmax(predictions[0])
-                    confidence = np.max(predictions[0]) * 100 * 5
+                    confidence = np.max(predictions[0]) * 100
 
                     # Handle cases where confidence might be very close to 100%
                     confidence = min(100.0, confidence)  # Ensure it doesn't exceed 100%
@@ -212,3 +212,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
