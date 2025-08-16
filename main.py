@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 
 # Set page config
 st.set_page_config(
-    page_title="အရေပြားရောဂါရှာဖွေရေး",
+    page_title="အရေပြားကင်ဆာ ခွဲခြားရေးကိရိယာ",
     page_icon="🩺",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -17,66 +17,58 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
-    .reportview-container { background: #f0f2f6 }
-    .sidebar .sidebar-content { background: #ffffff }
-    h1 { color: #2c3e50; }
-    .st-emotion-cache-8fjoqp { margin: auto; width: 80%; }
-    .st-bb { background-color: #ffffff; }
-    .st-at { background-color: #f0f2f6; }
+    .reportview-container {
+        background: #f0f2f6
+    }
+    .sidebar .sidebar-content {
+        background: #ffffff
+    }
+    h1 {
+        color: #2c3e50;
+    }
+    .st-emotion-cache-8fjoqp{
+        margin: auto;
+        width: 80%;
+    }
+    .st-bb {
+        background-color: #ffffff;
+    }
+    .st-at {
+        background-color: #f0f2f6;
+    }
     .disease-info {
         padding: 15px;
         background-color: #f8f9fa;
         border-radius: 10px;
         margin-top: 20px;
     }
+    .uploaded-image {
+        max-width: 400px;
+        margin: 0 auto;
+    }
     .stImage img {
         max-width: 400px;
         margin: 0 auto;
         display: block;
     }
-    .preprocessing-step {
-        color: #666;
-        font-size: 14px;
-        margin: 5px 0;
-    }
-    .clear-skin { color: green; font-weight: bold; font-size: 18px; }
-    .disease-detected { color: red; font-weight: bold; }
-    .diagnosis-box {
-        padding: 15px;
-        background-color: #f8f9fa;
-        border-radius: 10px;
-        margin-bottom: 20px;
-    }
-    .accuracy-display {
-        font-size: 16px;
-        color: #666;
-        margin-top: 10px;
-    }
-    .skin-warning {
-        color: #ff4b4b;
-        font-weight: bold;
-        font-size: 18px;
-        padding: 10px;
-        background-color: #ffe6e6;
-        border-radius: 5px;
-        margin: 10px 0;
-    }
 </style>
 """, unsafe_allow_html=True)
 
 
+# Load model with caching
 @st.cache_resource
 def load_model():
     try:
         model = tf.keras.models.load_model('skin_disease.h5')
         return model
     except Exception as e:
-        st.error(f"မော်ဒယ်ဖတ်ရှုရာတွင် အမှား: {str(e)}")
+        st.error(f"မော်ဒယ်ဖတ်ရှုရာတွင် အမှားတစ်ခုဖြစ်ပေါ်ခဲ့သည်: {str(e)}")
         return None
 
 
 model = load_model()
 
+# Class labels and disease information
 CLASS_NAMES = {
     0: 'Actinic keratoses (akiec)',
     1: 'Basal cell carcinoma (bcc)',
@@ -88,13 +80,13 @@ CLASS_NAMES = {
 }
 
 CLASS_NAMES_MM = {
-    0: 'Actinic keratoses',
-    1: 'Basal cell carcinoma',
-    2: 'Benign keratosis-like lesions',
-    3: 'Dermatofibroma',
-    4: 'Melanoma',
-    5: 'Melanocytic nevi',
-    6: 'Vascular lesions'
+    0: 'Actinic keratoses (အရေပြားအမာရွတ်)',
+    1: 'Basal cell carcinoma (အခြေခံဆဲလ်ကင်ဆာ)',
+    2: 'Benign keratosis-like lesions (ကင်ဆာမဟုတ်သော အရေပြားအဖုအကျိတ်)',
+    3: 'Dermatofibroma (အရေပြားအကြိတ်)',
+    4: 'Melanoma (မှဲ့ခြောက်ကင်ဆာ)',
+    5: 'Melanocytic nevi (ပုံမှန်မှဲ့)',
+    6: 'Vascular lesions (သွေးကြောဆိုင်ရာ ပြဿနာ)'
 }
 DISEASE_INFO = {
     0: {
@@ -123,7 +115,7 @@ DISEASE_INFO = {
         'protect':'Melanoma ကို ကာကွယ်ဖိုအတွက် အကောင်းဆုံးနည်းလမ်းကတော့ နေရောင်ခြည်ဒဏ်ကို ရှောင်ကြဉ်ဖို ပါပဲ။နေရောင်ကာခရင်မ် (Sunscreen) လိမ်းပါ: SPF 30 သိုမဟုတ် အဲ့ဒီထက်ပိုတဲ့ နေရောင်ကာခရင်မ်ကို အပြင်မထွက်ခင် မိနစ် (၂၀) ကြိုလိမ်းပြီး နာရီအနည်းငယ်ကြာတိုင်း ပြန်လိမ်းပေးပါ။ေရောင်ခြည်ပြင်းတဲ့အချိန်ရှောင်ပါ: မနက် (၁၀) နာရီကနေ ညနေ (၄) နာရီကြား နေရောင်ခြည်အပြင်းဆုံးအချိန်တွေမှာ အပြင်ထွက်တာကို တတ်နိုင်သမျှရှောင်ပါ။ခေါင်းအုပ်၊ မျက်မှန်နဲ့ အင်္ကျီလက်ရှည်ဝတ်ပါ: နေရောင်ကာကွယ်ဖို ဦးထုပ်၊ နေကာမျက်မှန်နဲ့ အရေပြားကိုဖုံးနိုင်တဲ့ အဝတ်အစားတွေ ဝတ်ဆင်ပါ။ပုံမှန်စစ်ဆေးပါ: သင့်ကိုယ်ပေါ်က မှဲတွေကို ပုံမှန်စစ်ဆေးပြီး ပုံမှန်မဟုတ်တာတွေ တွေ့ရင် အရေပြားဆရာဝန်နဲ့ တိုင်ပင်ပါ။'
     },
     5: {
-        'causes': 'Melanocytic nevi ဖြစ်ပေါ်ရတဲ့ အဓိကအကြောင်းရင်းနှစ်ခုကတော့ မျိုးရိုးဗီဇ (Genetic Factors): မိသားစုထဲမှာ မှဲ့များတဲ့ မျိုးရိုးရှိရင် ကိုယ်တိုင်လည်း မှဲ့များနိုင်ပါတယ်။ နေရောင်ခြည်ဒဏ် (Sun Exposure): ငယ်စဉ်ဘဝတုန်းက နေရောင်ခြည်ကို အလွန်အကျွံထိတွေ့ခဲ့တာက မှဲ့အသစ်တွေ ပိုမိုဖြစ်ပေါ်စေနိုင်ပါတယ်။',
+        'causes': 'Melanocytic nevi (မှဲ့) ဖြစ်ပေါ်ရတဲ့ အဓိကအကြောင်းရင်းနှစ်ခုကတော့ မျိုးရိုးဗီဇ (Genetic Factors): မိသားစုထဲမှာ မှဲ့များတဲ့ မျိုးရိုးရှိရင် ကိုယ်တိုင်လည်း မှဲ့များနိုင်ပါတယ်။ နေရောင်ခြည်ဒဏ် (Sun Exposure): ငယ်စဉ်ဘဝတုန်းက နေရောင်ခြည်ကို အလွန်အကျွံထိတွေ့ခဲ့တာက မှဲ့အသစ်တွေ ပိုမိုဖြစ်ပေါ်စေနိုင်ပါတယ်။',
         'about': 'Melanocytic nevi တွေဟာ အမျိုးအစားအမျိုးမျိုးရှိပြီး ပုံသဏ္ဌာန်၊ အရွယ်အစားနဲ့ အရောင်တွေကလည်း ကွဲပြားပါတယ်။ အရေပြားမျက်နှာပြင်နဲ့တစ်သားတည်းဖြစ်ပြီး ချောမွေ့ပါတယ်။ အညိုရောင်၊ အမည်းရောင်ဖြစ်တတ်ပါတယ်။အရေပြားမျက်နှာပြင်ကနေ အနည်းငယ်ဖောင်းကြွနေပြီး အညိုရောင်ရှိပါတယ်။ တစ်ခါတလေ အမွေးနုလေးတွေပါ ပါတတ်ပါတယ်။ အသားရောင် ဒါမှမဟုတ် ပန်းရောင်ဖျော့ဖျော့ရှိပြီး အရေပြားပေါ်ကနေ သိသိသာသာဖောင်းကြွနေပါတယ်။ အမွေးနုလေးတွေပါ ပါလေ့ရှိပါတယ်။ မွေးကတည်းကပါလာတဲ့ မှဲ့မျိုးဖြစ်ပြီး အရွယ်အစားအမျိုးမျိုးရှိနိုင်ပါတယ်။ ဒီမှဲအများစုဟာ ကင်ဆာအကျိတ်ဆိုးမဟုတ်ပေမယ့် Melanoma (အရေပြားကင်ဆာ) အဖြစ် ပြောင်းလဲသွားနိုင်တဲ့ ဖြစ်နိုင်ခြေအနည်းငယ်ရှိတာကြောင့် သတိထားစောင့်ကြည့်ဖိုလိုပါတယ်။ အထူးသဖြင့် မှဲ့တစ်ခုရဲ့ ပုံသဏ္ဌာန်၊ အရွယ်အစား ဒါမှမဟုတ် အရောင်တွေ ရုတ်တရက်ပြောင်းလဲသွားမယ်၊ ယားယံမယ် ဒါမှမဟုတ် သွေးထွက်တာမျိုးဖြစ်လာမယ်ဆိုရင် ဆရာဝန်နဲ့ သေချာပြသသင့်ပါတယ်။',
         'protect':'Melanocytic nevi ဖြစ်ပေါ်ခြင်းကို အပြည့်အဝကာကွယ်ဖိုဆိုတာ မလွယ်ပေမယ့် နေရောင်ခြည်ဒဏ်ကို ကာကွယ်ခြင်းအားဖြင့် မှဲအသစ်တွေ ပေါ်လာနိုင်ခြေကို လျှော့ချနိုင်ပါတယ်။နေရောင်ခြည်ကာကွယ်ပါ: အပြင်ထွက်တဲ့အခါ SPF 30 ဒါမှမဟုတ် အဲ့ဒီထက်ပိုတဲ့ နေရောင်ကာခရင်မ်ကို ပုံမှန်လိမ်းပါ။နေရောင်ခြည်ပြင်းတဲ့အချိန် ရှောင်ပါ: နေရောင်အပြင်းဆုံးဖြစ်တဲ့ မနက် ၁၀ နာရီကနေ ညနေ ၄ နာရီအတွင်းမှာ အပြင်ထွက်တာကို တတ်နိုင်သမျှရှောင်ပါ။မှန်မှန်စစ်ဆေးပါ: သင့်ခန္ဓာကိုယ်ပေါ်က မှဲတွေကို ပုံမှန်စစ်ဆေးပါ။ '
     },
