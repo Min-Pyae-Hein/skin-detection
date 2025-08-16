@@ -70,9 +70,6 @@ def load_model():
     try:
         model = tf.keras.models.load_model('skin_disease.h5')
         return model
-    except Exception as e:
-        st.error(f"မော်ဒယ်ဖတ်ရှုရာတွင် အမှား: {str(e)}")
-        return None
 
 
 model = load_model()
@@ -384,3 +381,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
