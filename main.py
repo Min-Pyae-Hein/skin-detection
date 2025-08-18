@@ -80,13 +80,13 @@ CLASS_NAMES = {
 }
 
 CLASS_NAMES_MM = {
-    0: 'Actinic keratoses (အရေပြားအမာရွတ်)',
-    1: 'Basal cell carcinoma (အခြေခံဆဲလ်ကင်ဆာ)',
-    2: 'Benign keratosis-like lesions (ကင်ဆာမဟုတ်သော အရေပြားအဖုအကျိတ်)',
-    3: 'Dermatofibroma (အရေပြားအကြိတ်)',
-    4: 'Melanoma (မှဲ့ခြောက်ကင်ဆာ)',
-    5: 'Melanocytic nevi (ပုံမှန်မှဲ့)',
-    6: 'Vascular lesions (သွေးကြောဆိုင်ရာ ပြဿနာ)'
+    0: 'Actinic keratoses',
+    1: 'Basal cell carcinoma',
+    2: 'Benign keratosis-like lesions',
+    3: 'Dermatofibroma',
+    4: 'Melanoma',
+    5: 'Melanocytic nevi',
+    6: 'Vascular lesions'
 }
 DISEASE_INFO = {
     0: {
@@ -376,3 +376,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
